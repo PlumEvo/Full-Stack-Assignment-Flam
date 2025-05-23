@@ -1,101 +1,184 @@
-import Image from "next/image";
+'use client';
+
+import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
+import UserCard from '@/components/UserCard';
+import SearchAndFilter from '@/components/SearchAndFilter';
+import { departments } from '@/constants';
+import Link from 'next/link';
 
 export default function Home() {
-  return (
-    <div className="grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20 font-[family-name:var(--font-geist-sans)]">
-      <main className="flex flex-col gap-8 row-start-2 items-center sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol className="list-inside list-decimal text-sm text-center sm:text-left font-[family-name:var(--font-geist-mono)]">
-          <li className="mb-2">
-            Get started by editing{" "}
-            <code className="bg-black/[.05] dark:bg-white/[.06] px-1 py-0.5 rounded font-semibold">
-              src/app/page.js
-            </code>
-            .
-          </li>
-          <li>Save and see your changes instantly.</li>
-        </ol>
+  const router = useRouter();
+  const [users, setUsers] = useState([]);
+  const [filteredUsers, setFilteredUsers] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [showBookmarked, setShowBookmarked] = useState(false);
+  const [bookmarkedUsers, setBookmarkedUsers] = useState(new Set());
+  const [searchTerm, setSearchTerm] = useState('');
+  const [filters, setFilters] = useState({
+    departments: ['All Departments'],
+    ratings: ['All Ratings']
+  });
 
-        <div className="flex gap-4 items-center flex-col sm:flex-row">
-          <a
-            className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
-            />
-            Deploy now
-          </a>
-          <a
-            className="rounded-full border border-solid border-black/[.08] dark:border-white/[.145] transition-colors flex items-center justify-center hover:bg-[#f2f2f2] dark:hover:bg-[#1a1a1a] hover:border-transparent text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:min-w-44"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Read our docs
-          </a>
+  // Generate and store consistent ratings for users
+  const [userRatings] = useState(() => {
+    const ratings = new Map();
+    return ratings;
+  });
+
+  useEffect(() => {
+    const fetchUsers = async () => {
+      try {
+        const response = await fetch('https://dummyjson.com/users?limit=20');
+        if (!response.ok) throw new Error('Failed to fetch users');
+        const data = await response.json();
+        
+        // Assign random departments and ratings to users
+        const usersWithData = data.users.map(user => {
+          // Generate and store a consistent rating for each user
+          if (!userRatings.has(user.id)) {
+            userRatings.set(user.id, Math.floor(Math.random() * 5) + 1);
+          }
+          
+          return {
+            ...user,
+            department: user.department || departments[Math.floor(Math.random() * departments.length)],
+            rating: userRatings.get(user.id)
+          };
+        });
+
+        setUsers(usersWithData);
+        setFilteredUsers(usersWithData);
+      } catch (err) {
+        setError(err.message);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchUsers();
+  }, [userRatings]);
+
+  useEffect(() => {
+    let result = [...users];
+
+    // Apply search filter
+    if (searchTerm) {
+      const searchLower = searchTerm.toLowerCase();
+      result = result.filter(user => 
+        user.firstName.toLowerCase().includes(searchLower) ||
+        user.lastName.toLowerCase().includes(searchLower) ||
+        user.email.toLowerCase().includes(searchLower) ||
+        user.department.toLowerCase().includes(searchLower)
+      );
+    }
+
+    // Apply department filter
+    if (!filters.departments.includes('All Departments')) {
+      result = result.filter(user => 
+        filters.departments.includes(user.department)
+      );
+    }
+
+    // Apply rating filter
+    if (!filters.ratings.includes('All Ratings')) {
+      result = result.filter(user => 
+        filters.ratings.includes(user.rating.toString())
+      );
+    }
+
+    // Apply bookmark filter
+    if (showBookmarked) {
+      result = result.filter(user => bookmarkedUsers.has(user.id));
+    }
+
+    setFilteredUsers(result);
+  }, [searchTerm, filters, showBookmarked, bookmarkedUsers, users]);
+
+  const handleBookmarkChange = (userId, isBookmarked) => {
+    setBookmarkedUsers(prev => {
+      const newSet = new Set(prev);
+      if (isBookmarked) {
+        newSet.add(userId);
+      } else {
+        newSet.delete(userId);
+      }
+      return newSet;
+    });
+  };
+
+  if (loading) {
+    return (
+      <div className="container mx-auto px-4 py-8">
+        <div className="flex items-center justify-center min-h-[60vh]">
+          <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
         </div>
-      </main>
-      <footer className="row-start-3 flex gap-6 flex-wrap items-center justify-center">
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="container mx-auto px-4 py-8">
+        <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded">
+          Error: {error}
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="container mx-auto px-4 py-8">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-8 gap-4">
+        <div>
+          <h1 className="text-3xl font-bold">HR Dashboard</h1>
+          <p className="text-gray-600 mt-1">
+            {filteredUsers.length} of {users.length} Employees
+          </p>
+        </div>
+        
+        <div className="flex items-center gap-4">
+          <Link
+            href="/analytics"
+            className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded transition-colors flex items-center gap-2"
+          >
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+            </svg>
+            Analytics
+          </Link>
+          <button
+            onClick={() => router.push('/bookmarks')}
+            className="bg-yellow-500 hover:bg-yellow-600 text-white px-4 py-2 rounded transition-colors flex items-center gap-2"
+          >
+            <span className="text-lg">★</span>
+            View Bookmarks
+          </button>
+        </div>
+      </div>
+
+      <SearchAndFilter 
+        onSearchChange={setSearchTerm}
+        onFilterChange={setFilters}
+      />
+      
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        {filteredUsers.map(user => (
+          <UserCard 
+            key={user.id} 
+            user={user}
+            rating={user.rating}
+            onBookmarkChange={handleBookmarkChange}
           />
-          Learn
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
-          />
-          Examples
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to nextjs.org →
-        </a>
-      </footer>
+        ))}
+      </div>
+
+      {filteredUsers.length === 0 && (
+        <div className="text-center text-gray-500 mt-8">
+          No employees match your search criteria
+        </div>
+      )}
     </div>
   );
 }
